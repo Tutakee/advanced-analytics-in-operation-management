@@ -127,11 +127,11 @@ def evaluate(w_val, b_val, X_te, Y_te, A_te, pairs, label):
 
     print()
     print("  Pairwise TPR difference matrix (row k, col l = TPR_k - TPR_l):")
-    header = "      " + "".join(f"  G{k}  " for k in AGE_LABELS)
+    header = "      " + "".join(f"  G{k}  " for k in groups)
     print(header)
-    for k in AGE_LABELS:
+    for k in groups:
         row = f"  G{k}  "
-        for l in AGE_LABELS:
+        for l in groups:
             if k == l:
                 row += "  ---  "
             else:
