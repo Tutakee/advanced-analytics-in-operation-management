@@ -22,7 +22,7 @@ from sklearn.compose import ColumnTransformer
 
 import cvxpy as cp
 
-from lp_core import build_hdrfc_k, evaluate
+from lp_core import build_hdrfc_k, evaluate, AGE_LABELS
 
 warnings.filterwarnings("ignore")
 
@@ -41,7 +41,6 @@ np.random.seed(RANDOM_STATE)
 
 # Right-closed intervals: (17,25], (25,40], (40,55], (55,70], (70,120]
 AGE_BINS = [17, 25, 40, 55, 70, 120]
-AGE_LABELS = [1, 2, 3, 4, 5]
 
 CATEGORICAL_COLS = ["VehBrand", "VehGas", "Region", "Area"]
 NUMERIC_COLS = ["VehPower", "VehAge", "BonusMalus", "Density", "Exposure"]
