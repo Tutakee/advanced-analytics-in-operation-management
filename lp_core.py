@@ -64,7 +64,6 @@ def build_hdrfc_k(X, Y, A, I_pos, pairs, rho, zeta):
 
     # Lambda variables sized |Ik| + |Il| per pair (not full-N) to avoid
     # ~320k unused LP variables across 20 pairs at N=16k.
-    lam = {}
     for (k, l) in pairs:
         Ik = I_pos[k]
         Il = I_pos[l]
@@ -72,7 +71,6 @@ def build_hdrfc_k(X, Y, A, I_pos, pairs, rho, zeta):
             continue
         nk, nl = len(Ik), len(Il)
         lam_kl = cp.Variable(nk + nl, name=f"lam_{k}_{l}", nonneg=True)
-        lam[(k, l)] = (lam_kl, nk, nl)
 
         # Constraint (8): scalar fairness bound — H_kl <= 1 + zeta
         if zeta < np.inf:
@@ -105,7 +103,8 @@ def evaluate(w_val, b_val, X_te, Y_te, A_te, pairs, label):
     bal_acc = balanced_accuracy_score(Y_te, Y_hat)
 
     tpr = {}
-    for k in AGE_LABELS:
+    groups = sorted(set(k for p in pairs for k in p))
+    for k in groups:
         mask = (A_te == k) & (Y_te == 1)
         tpr[k] = float(np.mean(Y_hat[mask] == 1)) if mask.sum() > 0 else float("nan")
 
@@ -123,7 +122,7 @@ def evaluate(w_val, b_val, X_te, Y_te, A_te, pairs, label):
     print(f"  Max pairwise TPR gap: {max_gap:.4f}")
     print()
     print("  TPR per age group:")
-    for k in AGE_LABELS:
+    for k in groups:
         print(f"    Group {k} ({_GROUP_NAMES[k-1]}): TPR = {tpr[k]:.4f}")
 
     print()
