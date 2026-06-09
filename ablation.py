@@ -148,7 +148,7 @@ for rho in RHO_GRID:
 
         print(
             f"[{idx:>2}/{total}] rho={rho:.2f} zeta={zeta:.1f} "
-            f"→ {status:<20} max_gap={max_gap:.4f}  ({solve_time:.1f}s)"
+            f"-> {status:<20} max_gap={max_gap:.4f}  ({solve_time:.1f}s)"
         )
         records.append({
             "rho": rho,
