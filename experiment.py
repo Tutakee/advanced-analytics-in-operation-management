@@ -53,7 +53,7 @@ print("=" * 60)
 print("S1  Loading freMTPL2freq (OpenML ID 41214)")
 print("=" * 60)
 
-raw = fetch_openml(data_id=41214, as_frame=True, parser="pandas", data_version=1)
+raw = fetch_openml(data_id=41214, as_frame=True, parser="pandas")
 df = raw.frame.copy()
 
 # Binary label
