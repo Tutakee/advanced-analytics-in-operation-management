@@ -89,11 +89,58 @@ def build_hdrfc_k(X, Y, A, I_pos, pairs, rho, zeta):
     return problem, w, b
 
 
-def evaluate(w_val, b_val, X_te, Y_te, A_te, pairs, label):
+def compute_hkl(w_val, b_val, X_tr, A_tr, I_pos, pairs, rho):
+    """
+    Compute realized H_kl values on the training set for all ordered pairs.
+
+    H_kl = (1/|Ik+|) sum_{i in Ik+} max(0, 1 + w'xi + rho||w||1 + b)
+         + (1/|Il+|) sum_{i in Il+} max(0, 1 - w'xi + rho||w||1 - b)
+         - 1
+
+    Returns dict (k, l) -> H_kl value and prints constraint slack table.
+    """
+    norm_w = np.sum(np.abs(w_val))
+    Xw_b = X_tr @ w_val + b_val
+
+    hkl = {}
+    for (k, l) in pairs:
+        Ik = I_pos[k]
+        Il = I_pos[l]
+        if len(Ik) == 0 or len(Il) == 0:
+            hkl[(k, l)] = float("nan")
+            continue
+        term_k = np.mean(np.maximum(0.0, 1.0 + Xw_b[Ik] + rho * norm_w))
+        term_l = np.mean(np.maximum(0.0, 1.0 - Xw_b[Il] + rho * norm_w))
+        hkl[(k, l)] = term_k + term_l - 1.0
+    return hkl
+
+
+def print_hkl_table(hkl, zeta, pairs):
+    """Print H_kl values, constraint LHS, and slack for all ordered pairs."""
+    groups = sorted(set(k for p in pairs for k in p))
+    print("\n  Realized H_kl values (constraint (8): H_kl <= 1 + zeta = {:.4f}):".format(1 + zeta))
+    print(f"  {'Pair (k,l)':<12} {'H_kl':>10} {'LHS (H_kl)':>12} {'Slack':>10} {'Binding?':>10}")
+    print("  " + "-" * 56)
+    bound = 1.0 + zeta if zeta < np.inf else float("inf")
+    for (k, l) in sorted(pairs):
+        v = hkl.get((k, l), float("nan"))
+        if np.isnan(v):
+            print(f"  ({k},{l}){'':8} {'nan':>10} {'nan':>12} {'nan':>10}")
+            continue
+        slack = bound - v
+        binding = "YES" if slack < 1e-4 else "no"
+        print(f"  ({k},{l}){'':8} {v:>10.5f} {v:>12.5f} {slack:>10.5f} {binding:>10}")
+    max_hkl = max((v for v in hkl.values() if not np.isnan(v)), default=float("nan"))
+    print(f"\n  Max H_kl = {max_hkl:.5f}  (bound = {bound:.4f})")
+
+
+def evaluate(w_val, b_val, X_te, Y_te, A_te, pairs, label,
+             X_tr=None, A_tr=None, I_pos=None, rho=0.0, zeta=np.inf):
     """
     Evaluate a fitted classifier and print metrics.
 
-    Returns dict with keys: accuracy, balanced_accuracy, tpr (dict), max_gap.
+    Returns dict with keys: accuracy, balanced_accuracy, tpr (dict), max_gap,
+    hkl (dict of realized H_kl values, or None if training data not supplied).
     """
     scores = X_te @ w_val + b_val
     Y_hat = np.sign(scores)
@@ -139,4 +186,10 @@ def evaluate(w_val, b_val, X_te, Y_te, A_te, pairs, label):
                 row += f" {diff:+.3f}"
         print(row)
 
-    return {"accuracy": acc, "balanced_accuracy": bal_acc, "tpr": tpr, "max_gap": max_gap}
+    hkl = None
+    if X_tr is not None and I_pos is not None:
+        hkl = compute_hkl(w_val, b_val, X_tr, A_tr, I_pos, pairs, rho)
+        print_hkl_table(hkl, zeta, pairs)
+
+    return {"accuracy": acc, "balanced_accuracy": bal_acc, "tpr": tpr,
+            "max_gap": max_gap, "hkl": hkl}

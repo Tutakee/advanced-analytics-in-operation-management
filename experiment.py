@@ -155,7 +155,8 @@ print(f"  Solve time: {svm_time:.1f}s")
 
 if prob_svm.status in ("optimal", "optimal_inaccurate"):
     results_svm = evaluate(w_svm.value, b_svm.value, X_te, Y_te, A_te, pairs,
-                           label="Unconstrained SVM (rho=0, zeta=inf)")
+                           label="Unconstrained SVM (rho=0, zeta=inf)",
+                           X_tr=X_tr, A_tr=A_tr, I_pos=I_pos, rho=0.0, zeta=np.inf)
 else:
     print("  Solver did not find an optimal solution.")
     results_svm = None
@@ -182,11 +183,68 @@ print(f"  Solve time: {hdrfc_time:.1f}s")
 
 if prob_hdrfc.status in ("optimal", "optimal_inaccurate"):
     results_hdrfc = evaluate(w_hdrfc.value, b_hdrfc.value, X_te, Y_te, A_te, pairs,
-                             label=f"HDRFC-K (rho={RHO}, zeta={ZETA}, K={K})")
+                             label=f"HDRFC-K (rho={RHO}, zeta={ZETA}, K={K})",
+                             X_tr=X_tr, A_tr=A_tr, I_pos=I_pos, rho=RHO, zeta=ZETA)
 else:
     print("  Solver did not find an optimal solution.")
     print("  Tip: try increasing zeta (current fairness constraint may be infeasible).")
     results_hdrfc = None
+
+# -------------------------------------------------------------
+# S5b  ROBUST-ONLY: (rho=RHO, zeta=inf)
+# -------------------------------------------------------------
+
+print()
+print("=" * 60)
+print(f"S5  Robust-only  (rho={RHO}, zeta=inf)")
+print("=" * 60)
+
+t0 = time.time()
+prob_rob, w_rob, b_rob = build_hdrfc_k(
+    X_tr, Y_tr, A_tr, I_pos, pairs, rho=RHO, zeta=np.inf
+)
+prob_rob.solve(solver=cp.CLARABEL, verbose=False)
+rob_time = time.time() - t0
+
+print(f"  Status   : {prob_rob.status}")
+print(f"  Objective: {prob_rob.value:.6f}")
+print(f"  Solve time: {rob_time:.1f}s")
+
+if prob_rob.status in ("optimal", "optimal_inaccurate"):
+    results_rob = evaluate(w_rob.value, b_rob.value, X_te, Y_te, A_te, pairs,
+                           label=f"Robust-only (rho={RHO}, zeta=inf)",
+                           X_tr=X_tr, A_tr=A_tr, I_pos=I_pos, rho=RHO, zeta=np.inf)
+else:
+    print("  Solver did not find an optimal solution.")
+    results_rob = None
+
+# -------------------------------------------------------------
+# S5c  FAIR-ONLY: (rho=0, zeta=ZETA)
+# -------------------------------------------------------------
+
+print()
+print("=" * 60)
+print(f"S6  Fair-only  (rho=0, zeta={ZETA})")
+print("=" * 60)
+
+t0 = time.time()
+prob_fair, w_fair, b_fair = build_hdrfc_k(
+    X_tr, Y_tr, A_tr, I_pos, pairs, rho=0.0, zeta=ZETA
+)
+prob_fair.solve(solver=cp.CLARABEL, verbose=False)
+fair_time = time.time() - t0
+
+print(f"  Status   : {prob_fair.status}")
+print(f"  Objective: {prob_fair.value:.6f}")
+print(f"  Solve time: {fair_time:.1f}s")
+
+if prob_fair.status in ("optimal", "optimal_inaccurate"):
+    results_fair = evaluate(w_fair.value, b_fair.value, X_te, Y_te, A_te, pairs,
+                            label=f"Fair-only (rho=0, zeta={ZETA})",
+                            X_tr=X_tr, A_tr=A_tr, I_pos=I_pos, rho=0.0, zeta=ZETA)
+else:
+    print("  Solver did not find an optimal solution.")
+    results_fair = None
 
 # -------------------------------------------------------------
 # S6  SUMMARY COMPARISON
@@ -194,26 +252,39 @@ else:
 
 print()
 print("=" * 60)
-print("S5  Summary Comparison")
+print("S7  Summary Comparison")
 print("=" * 60)
 
 rows = []
 if results_svm:
-    rows.append(("Unconstrained SVM", results_svm["accuracy"],
+    rows.append(("Unconstrained (rho=0, zeta=inf)", results_svm["accuracy"],
                  results_svm["balanced_accuracy"], results_svm["max_gap"], svm_time))
+if results_rob:
+    rows.append((f"Robust-only (rho={RHO}, zeta=inf)", results_rob["accuracy"],
+                 results_rob["balanced_accuracy"], results_rob["max_gap"], rob_time))
+if results_fair:
+    rows.append((f"Fair-only (rho=0, zeta={ZETA})", results_fair["accuracy"],
+                 results_fair["balanced_accuracy"], results_fair["max_gap"], fair_time))
 if results_hdrfc:
     rows.append((f"HDRFC-K (rho={RHO}, zeta={ZETA})", results_hdrfc["accuracy"],
                  results_hdrfc["balanced_accuracy"], results_hdrfc["max_gap"], hdrfc_time))
 
-header = f"{'Model':<30} {'Accuracy':>10} {'Bal.Acc':>10} {'MaxTPRgap':>12} {'Time(s)':>10}"
+header = f"{'Model':<38} {'Accuracy':>10} {'Bal.Acc':>10} {'MaxTPRgap':>12} {'Time(s)':>10}"
 print(header)
 print("-" * len(header))
 for r in rows:
-    print(f"{r[0]:<30} {r[1]:>10.4f} {r[2]:>10.4f} {r[3]:>12.4f} {r[4]:>10.1f}")
+    print(f"{r[0]:<38} {r[1]:>10.4f} {r[2]:>10.4f} {r[3]:>12.4f} {r[4]:>10.1f}")
 
 print()
 if results_svm and results_hdrfc:
     delta_acc = results_hdrfc["accuracy"] - results_svm["accuracy"]
     delta_gap = results_hdrfc["max_gap"] - results_svm["max_gap"]
-    print(f"  Accuracy change  : {delta_acc:+.4f}  ({'improved' if delta_acc > 0 else 'decreased'})")
-    print(f"  Max TPR gap change: {delta_gap:+.4f}  ({'worse' if delta_gap > 0 else 'improved — fairness gain'})")
+    print(f"  Full model vs unconstrained:")
+    print(f"    Accuracy change  : {delta_acc:+.4f}  ({'improved' if delta_acc > 0 else 'decreased'})")
+    print(f"    Max TPR gap change: {delta_gap:+.4f}  ({'worse' if delta_gap > 0 else 'improved — fairness gain'})")
+if results_svm and results_rob:
+    delta_gap_rob = results_rob["max_gap"] - results_svm["max_gap"]
+    print(f"  Robust-only vs unconstrained  TPR gap change: {delta_gap_rob:+.4f}")
+if results_svm and results_fair:
+    delta_gap_fair = results_fair["max_gap"] - results_svm["max_gap"]
+    print(f"  Fair-only vs unconstrained    TPR gap change: {delta_gap_fair:+.4f}")
